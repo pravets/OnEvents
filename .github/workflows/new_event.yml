@@ -8,10 +8,11 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   create-event-file:
-    if: contains(github.event.issue.labels.*.name, 'new event')
+
     runs-on: ubuntu-latest
     steps:
       - name: Create event file from issue
@@ -19,7 +20,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const core = require('@actions/core');
             const { issue } = context.payload;
             const { owner, repo } = context.repo;
 
@@ -95,6 +95,45 @@ jobs:
               }
             }
 
+            const branchSlugBase = (slugBase || 'EVENT')
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '') || 'event';
+
+            const baseBranch = context.payload.repository?.default_branch || 'main';
+            const { data: baseBranchRef } = await github.rest.git.getRef({
+              owner,
+              repo,
+              ref: `heads/${baseBranch}`,
+            });
+            const baseSha = baseBranchRef.object.sha;
+
+            let branchName = `new-event/${branchSlugBase}`;
+            let branchCounter = 1;
+            while (true) {
+              try {
+                await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: `heads/${branchName}`,
+                });
+                branchCounter += 1;
+                branchName = `new-event/${branchSlugBase}-${branchCounter}`;
+              } catch (error) {
+                if (error.status === 404) {
+                  break;
+                }
+                throw error;
+              }
+            }
+
+            await github.rest.git.createRef({
+              owner,
+              repo,
+              ref: `refs/heads/${branchName}`,
+              sha: baseSha,
+            });
+
             const formatValue = (value) => {
               if (value === undefined || value === null || value === '') {
                 return '""';
@@ -128,12 +167,28 @@ jobs:
               path: filePath,
               message: `feat: add event from issue #${issue.number}`,
               content: Buffer.from(content, 'utf8').toString('base64'),
+              branch: branchName,
+            });
+
+            const prTitle = `Add event: ${parsed.title.replace(/\s+/g, ' ').trim()}`;
+            const prBody = [
+              `Автоматически создано из issue #${issue.number}.`,
+              '',
+              `- Файл: \`${filePath}\``,
+            ].join('\n');
+            const { data: pr } = await github.rest.pulls.create({
+              owner,
+              repo,
+              title: prTitle,
+              head: branchName,
+              base: baseBranch,
+              body: prBody,
             });
 
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: issue.number,
-              body: `Файл события создан: \`${filePath}\``,
+              body: `Создан Pull Request #${pr.number} для файла \`${filePath}\`.\n\n${pr.html_url}`,
             });
 
