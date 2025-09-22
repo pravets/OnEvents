@@ -5,3 +5,10 @@ address: "ул. Кораблестроителей, 14, Cosmos St. Petersburg Pr
 icon: "stachka.png"
 description: "Крупнейшая региональная IT-конференция России. Собираем более 3 000 специалистов ежегодно — разработчиков, маркетологов, дизайнеров, руководителей и собственников IT-компаний."
 registration_url: "https://spb25.nastachku.ru/"
+sessions:
+  - date: "2025-10-02"
+    start_time: "10:00"
+    end_time: "19:50"
+  - date: "2025-10-03"
+    start_time: "10:00"
+    end_time: "19:00"
