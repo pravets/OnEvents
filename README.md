@@ -1,3 +1,4 @@
+[![OpenYellow](https://img.shields.io/endpoint?url=https://openyellow.org/data/badges/7/1040948355.json)](https://openyellow.org/grid?data=top&repo=1040948355)
 [![Quality Gate Status](https://sonar.openbsl.ru/api/project_badges/measure?project=onevents&metric=alert_status)](https://sonar.openbsl.ru/dashboard?id=onevents)
 
 # 🎉 OnEvents
