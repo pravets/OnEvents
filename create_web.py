@@ -2,6 +2,7 @@ import os
 import yaml
 from datetime import datetime
 from datetime import date
+from datetime import timedelta
 from pathlib import Path
 from babel.dates import format_date
 import shutil
@@ -39,9 +40,6 @@ def generate_ics_content(event):
     uid_string = f"{event['title']}-{event['date']}-{event['city']}"
     uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest()
     
-    # Парсим дату события
-    event_date = datetime.strptime(event['date'], "%Y-%m-%d")
-    
     # Формируем адрес
     location = event['city']
     if event['address']:
@@ -61,8 +59,67 @@ def generate_ics_content(event):
     title = clean_text(event['title'])
     description = clean_text(event['description'])
     
-    # Формируем ICS содержимое
-    ics_content = f"""BEGIN:VCALENDAR
+    # Проверяем, есть ли секция sessions для события
+    if 'sessions' in event and event['sessions']:
+        sessions = event['sessions']
+        # Сортируем сессии по дате
+        sessions.sort(key=lambda x: x['date'])
+        
+        # Формируем ICS содержимое с несколькими VEVENT
+        ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OnEvents//OnEvents Calendar//RU
+CALSCALE:GREGORIAN
+METHOD:PUBLISH"""
+        
+        # Нормализуем время к формату HHMMSS для ICS
+        def to_hhmmss(time_str: str) -> str:
+            s = str(time_str).strip()
+            s = s.replace('.', ':')
+            parts = s.split(':')
+            if len(parts) == 1:
+                hour = parts[0]
+                minute = '00'
+            else:
+                hour = parts[0]
+                minute = parts[1]
+            hour = hour.zfill(2)
+            minute = minute.zfill(2)
+            return f"{hour}{minute}00"
+
+        # Создаем отдельный VEVENT для каждой сессии
+        for i, session in enumerate(sessions):
+            session_date = datetime.strptime(session['date'], "%Y-%m-%d")
+            session_uid = f"{uid}-{i+1}"  # Уникальный UID для каждой сессии
+            
+            # Формируем время начала и окончания (локальное время)
+            start_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['start_time'])}"
+            end_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['end_time'])}"
+            
+            # Название сессии с датой
+            date_str = format_date(session_date, format="d MMMM", locale="ru")
+            session_title = f"{title} ({date_str})"
+            
+            ics_content += f"""
+BEGIN:VEVENT
+UID:{session_uid}@onevents.ru
+DTSTART:{start_datetime}
+DTEND:{end_datetime}
+SUMMARY:{session_title}
+DESCRIPTION:{description}\\n\\nСсылка на регистрацию: {event['registration_url']}\\n\\nВремя: {session['start_time']}-{session['end_time']}
+LOCATION:{location}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT"""
+        
+        ics_content += """
+END:VCALENDAR"""
+    else:
+        # Обычное однодневное событие
+        event_date = datetime.strptime(event['date'], "%Y-%m-%d")
+        
+        # Формируем ICS содержимое
+        ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//OnEvents//OnEvents Calendar//RU
 CALSCALE:GREGORIAN
