@@ -5,6 +5,8 @@ from datetime import date
 from pathlib import Path
 from babel.dates import format_date
 import shutil
+import hashlib
+import re
 
 # Пути
 EVENTS_DIR = Path("events")
@@ -29,6 +31,55 @@ for file in EVENTS_DIR.glob("*.yml"):
 # Сортируем по дате
 events.sort(key=lambda e: e["date"])
 
+# Функция генерации ICS файла для события
+def generate_ics_content(event):
+    """Генерирует содержимое .ics файла для события"""
+    
+    # Создаем уникальный UID на основе данных события
+    uid_string = f"{event['title']}-{event['date']}-{event['city']}"
+    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest()
+    
+    # Парсим дату события
+    event_date = datetime.strptime(event['date'], "%Y-%m-%d")
+    
+    # Формируем адрес
+    location = event['city']
+    if event['address']:
+        location += f", {event['address']}"
+    
+    # Очищаем текст от HTML и специальных символов для ICS
+    def clean_text(text):
+        # Убираем HTML теги
+        text = re.sub(r'<[^>]+>', '', text)
+        # Экранируем специальные символы для ICS
+        text = text.replace('\\', '\\\\')
+        text = text.replace(',', '\\,')
+        text = text.replace(';', '\\;')
+        text = text.replace('\n', '\\n')
+        return text
+    
+    title = clean_text(event['title'])
+    description = clean_text(event['description'])
+    
+    # Формируем ICS содержимое
+    ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OnEvents//OnEvents Calendar//RU
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:{uid}@onevents.ru
+DTSTART;VALUE=DATE:{event_date.strftime('%Y%m%d')}
+SUMMARY:{title}
+DESCRIPTION:{description}\\n\\nСсылка на регистрацию: {event['registration_url']}
+LOCATION:{location}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR"""
+    
+    return ics_content
+
 # Функция генерации карточки
 def render_event(e):
     date_obj = datetime.strptime(e['date'], "%Y-%m-%d")
@@ -39,6 +90,11 @@ def render_event(e):
       address_str  = e['city']
     else:
       address_str  = e['city'] + ", "  + e['address']
+    
+    # Генерируем имя файла для .ics
+    safe_title = re.sub(r'[^\w\s-]', '', e['title']).strip()
+    safe_title = re.sub(r'[-\s]+', '-', safe_title)
+    ics_filename = f"{e['date']}-{safe_title}.ics"
  
     return f"""
     <article class="card" itemscope itemtype="https://schema.org/Event"  data-city="{e['city']}">
@@ -62,6 +118,7 @@ def render_event(e):
       </div>
       <p>{e['description']}</p>
       <a href="{e['registration_url']}" role="button" target="_blank">Регистрация</a>
+      <a href="calendar/{ics_filename}" role="button" download="{ics_filename}" style="margin-left:0.5rem;">Добавить в календарь</a>
     </article>
     """
 
@@ -87,3 +144,21 @@ shutil.copytree("img", "site/img", dirs_exist_ok=True)
 
 # Копируем Иконки
 shutil.copytree("icons", "site/icons", dirs_exist_ok=True)
+
+# Создаем папку для календарных файлов
+calendar_dir = OUTPUT_DIR / "calendar"
+calendar_dir.mkdir(exist_ok=True)
+
+# Генерируем .ics файлы для каждого события
+for event in events:
+    # Генерируем имя файла для .ics
+    safe_title = re.sub(r'[^\w\s-]', '', event['title']).strip()
+    safe_title = re.sub(r'[-\s]+', '-', safe_title)
+    ics_filename = f"{event['date']}-{safe_title}.ics"
+    
+    # Генерируем содержимое .ics файла
+    ics_content = generate_ics_content(event)
+    
+    # Сохраняем .ics файл
+    ics_file_path = calendar_dir / ics_filename
+    ics_file_path.write_text(ics_content, encoding="utf-8")
