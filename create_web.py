@@ -38,7 +38,7 @@ def generate_ics_content(event):
     
     # Создаем уникальный UID на основе данных события
     uid_string = f"{event['title']}-{event['date']}-{event['city']}"
-    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest()
+    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest() # NOSONAR
     
     # Формируем адрес
     location = event['city']
