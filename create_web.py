@@ -66,7 +66,7 @@ def generate_ics_content(event):
         sessions.sort(key=lambda x: x['date'])
         
         # Формируем ICS содержимое с несколькими VEVENT
-        ics_content = f"""BEGIN:VCALENDAR
+        ics_content = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//OnEvents//OnEvents Calendar//RU
 CALSCALE:GREGORIAN
