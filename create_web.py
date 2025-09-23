@@ -17,18 +17,21 @@ OUTPUT_FILE = OUTPUT_DIR / "index.html"
 template = TEMPLATE_FILE.read_text(encoding="utf-8")
 
 # Список событий
-events = []
+all_events = []  # все события (включая прошедшие)
+events = []      # только будущие события для карточек/индивидуальных .ics
 
 for file in EVENTS_DIR.glob("*.yml"):
     with open(file, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     event_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+    all_events.append(data)
     if event_date >= datetime.today().date():
         events.append(data)
 
 # Сортируем по дате
-events.sort(key=lambda e: e["date"])
+all_events.sort(key=lambda e: e["date"])  # для общего календаря
+events.sort(key=lambda e: e["date"])      # для карточек/индивидуальных .ics
 
 # Вспомогательные функции для работы с ICS
 def to_hhmmss(time_str: str) -> str:
@@ -278,6 +281,6 @@ for event in events:
     ics_file_path.write_text(ics_content, encoding="utf-8")
 
 # Генерируем общий календарь со всеми событиями
-public_calendar_content = generate_public_calendar(events)
+public_calendar_content = generate_public_calendar(all_events)
 public_calendar_path = calendar_dir / "onevents-public.ics"
 public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
