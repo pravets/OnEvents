@@ -76,7 +76,7 @@ def generate_event_vevent(event, session=None, session_index=None):
     uid_string = f"{event['title']}-{event['date']}-{event['city']}"
     if session_index is not None:
         uid_string += f"-{session_index}"
-    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest()
+    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest() # NOSONAR
     
     # Формируем адрес
     location = event['city']
