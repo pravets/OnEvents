@@ -60,6 +60,12 @@ def clean_text(text):
     text = text.replace('\n', '\\n')
     return text
 
+def make_slug(text: str) -> str:
+    """Готовит безопасный слаг для имени файла из названия города."""
+    safe = re.sub(r'[^\w\s-]', '', str(text)).strip()
+    safe = re.sub(r'[-\s]+', '-', safe)
+    return safe.lower()
+
 def generate_event_vevent(event, session=None, session_index=None):
     """Генерирует VEVENT для события или сессии"""
     # Создаем уникальный UID
@@ -123,22 +129,31 @@ TRANSP:OPAQUE
 END:VEVENT"""
 
 # Функция генерации общего календаря со всеми событиями
-def generate_public_calendar(events):
-    """Генерирует общий календарь со всеми событиями"""
+def generate_public_calendar(events, calendar_name: str | None = None, wr_url: str | None = None):
+    """Генерирует общий календарь со всеми событиями.
+
+    calendar_name: заголовок календаря для X-WR-CALNAME
+    wr_url: значение для X-WR-URL (публичная ссылка на файл)
+    """
     
     # Текущее время для метаданных
     now = datetime.now()
     now_str = now.strftime('%Y%m%dT%H%M%SZ')
     
+    default_name = "Cобытия 1C - OnEvents"
+    cal_name = calendar_name or default_name
+    default_url = "https://onevents.ru/calendar/onevents-public.ics"
+    cal_url = wr_url or default_url
+
     ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//OnEvents//OnEvents Calendar//RU
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:OnEvents - 1С события
+X-WR-CALNAME:{cal_name}
 X-WR-CALDESC:Календарь 1С событий от OnEvents
 X-WR-TIMEZONE:Europe/Moscow
-X-WR-URL:https://onevents.ru/calendar/onevents-public.ics
+X-WR-URL:{cal_url}
 REFRESH-INTERVAL;VALUE=DURATION:PT1H
 X-PUBLISHED-TTL:PT1H
 LAST-MODIFIED:{now_str}
@@ -281,6 +296,25 @@ for event in events:
     ics_file_path.write_text(ics_content, encoding="utf-8")
 
 # Генерируем общий календарь со всеми событиями
-public_calendar_content = generate_public_calendar(all_events)
+public_calendar_content = generate_public_calendar(
+    all_events,
+    calendar_name="События 1С - OnEvents",
+    wr_url="https://onevents.ru/calendar/onevents-public.ics",
+)
 public_calendar_path = calendar_dir / "onevents-public.ics"
 public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
+
+# Генерируем отдельные публичные календари по городам
+unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
+for city in unique_cities:
+    city_events = [e for e in all_events if e.get('city') == city]
+    city_slug = make_slug(city)
+    city_filename = f"onevents-public-{city_slug}.ics"
+    city_url = f"https://onevents.ru/calendar/{city_filename}"
+    city_calendar_name = f"События 1С. {city} - OnEvents"
+    city_calendar_content = generate_public_calendar(
+        city_events,
+        calendar_name=city_calendar_name,
+        wr_url=city_url,
+    )
+    (calendar_dir / city_filename).write_text(city_calendar_content, encoding="utf-8")
