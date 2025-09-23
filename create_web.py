@@ -7,6 +7,10 @@ import shutil
 import hashlib
 import re
 
+# Общие регулярные выражения
+SAFE_CHARS_PATTERN = re.compile(r'[^\w\s-]')
+DASHES_SPACES_PATTERN = re.compile(r'[-\s]+')
+
 # Пути
 EVENTS_DIR = Path("events")
 TEMPLATE_FILE = Path("web/index.html")
@@ -62,8 +66,8 @@ def clean_text(text):
 
 def make_slug(text: str) -> str:
     """Готовит безопасный слаг для имени файла из названия города."""
-    safe = re.sub(r'[^\w\s-]', '', str(text)).strip()
-    safe = re.sub(r'[-\s]+', '-', safe)
+    safe = SAFE_CHARS_PATTERN.sub('', str(text)).strip()
+    safe = DASHES_SPACES_PATTERN.sub('-', safe)
     return safe.lower()
 
 def generate_event_vevent(event, session=None, session_index=None):
@@ -224,8 +228,8 @@ def render_event(e):
       address_str  = e['city'] + ", "  + e['address']
     
     # Генерируем имя файла для .ics
-    safe_title = re.sub(r'[^\w\s-]', '', e['title']).strip()
-    safe_title = re.sub(r'[-\s]+', '-', safe_title)
+    safe_title = SAFE_CHARS_PATTERN.sub('', e['title']).strip()
+    safe_title = DASHES_SPACES_PATTERN.sub('-', safe_title)
     ics_filename = f"{e['date']}-{safe_title}.ics"
  
     return f"""
@@ -284,8 +288,8 @@ calendar_dir.mkdir(exist_ok=True)
 # Генерируем .ics файлы для каждого события
 for event in events:
     # Генерируем имя файла для .ics
-    safe_title = re.sub(r'[^\w\s-]', '', event['title']).strip()
-    safe_title = re.sub(r'[-\s]+', '-', safe_title)
+    safe_title = SAFE_CHARS_PATTERN.sub('', event['title']).strip()
+    safe_title = DASHES_SPACES_PATTERN.sub('-', safe_title)
     ics_filename = f"{event['date']}-{safe_title}.ics"
     
     # Генерируем содержимое .ics файла
