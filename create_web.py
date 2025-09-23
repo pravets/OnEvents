@@ -1,8 +1,6 @@
 import os
 import yaml
-from datetime import datetime
-from datetime import date
-from datetime import timedelta
+from datetime import datetime, date
 from pathlib import Path
 from babel.dates import format_date
 import shutil
@@ -32,32 +30,149 @@ for file in EVENTS_DIR.glob("*.yml"):
 # Сортируем по дате
 events.sort(key=lambda e: e["date"])
 
-# Функция генерации ICS файла для события
-def generate_ics_content(event):
-    """Генерирует содержимое .ics файла для события"""
-    
-    # Создаем уникальный UID на основе данных события
+# Вспомогательные функции для работы с ICS
+def to_hhmmss(time_str: str) -> str:
+    """Нормализует время к формату HHMMSS для ICS"""
+    s = str(time_str).strip()
+    s = s.replace('.', ':')
+    parts = s.split(':')
+    if len(parts) == 1:
+        hour = parts[0]
+        minute = '00'
+    else:
+        hour = parts[0]
+        minute = parts[1]
+    hour = hour.zfill(2)
+    minute = minute.zfill(2)
+    return f"{hour}{minute}00"
+
+def clean_text(text):
+    """Очищает текст от HTML и экранирует специальные символы для ICS"""
+    # Убираем HTML теги
+    text = re.sub(r'<[^>]+>', '', text)
+    # Экранируем специальные символы для ICS
+    text = text.replace('\\', '\\\\')
+    text = text.replace(',', '\\,')
+    text = text.replace(';', '\\;')
+    text = text.replace('\n', '\\n')
+    return text
+
+def generate_event_vevent(event, session=None, session_index=None):
+    """Генерирует VEVENT для события или сессии"""
+    # Создаем уникальный UID
     uid_string = f"{event['title']}-{event['date']}-{event['city']}"
-    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest() # NOSONAR
+    if session_index is not None:
+        uid_string += f"-{session_index}"
+    uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest()
     
     # Формируем адрес
     location = event['city']
     if event['address']:
         location += f", {event['address']}"
     
-    # Очищаем текст от HTML и специальных символов для ICS
-    def clean_text(text):
-        # Убираем HTML теги
-        text = re.sub(r'<[^>]+>', '', text)
-        # Экранируем специальные символы для ICS
-        text = text.replace('\\', '\\\\')
-        text = text.replace(',', '\\,')
-        text = text.replace(';', '\\;')
-        text = text.replace('\n', '\\n')
-        return text
-    
     title = clean_text(event['title'])
     description = clean_text(event['description'])
+    
+    if session:
+        # Сессия события
+        session_date = datetime.strptime(session['date'], "%Y-%m-%d")
+        session_uid = f"{uid}-{session_index}"
+        
+        # Формируем время начала и окончания
+        start_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['start_time'])}"
+        end_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['end_time'])}"
+        
+        # Название сессии с датой
+        date_str = format_date(session_date, format="d MMMM", locale="ru")
+        session_title = f"{title} ({date_str})"
+        
+        description_text = (
+            f"{description}\\n\\nСсылка на регистрацию: {event['registration_url']}"
+            f"\\n\\nВремя: {session['start_time']}-{session['end_time']}"
+        )
+        
+        return f"""BEGIN:VEVENT
+UID:{session_uid}@onevents.ru
+DTSTART:{start_datetime}
+DTEND:{end_datetime}
+SUMMARY:{session_title}
+DESCRIPTION:{description_text}
+LOCATION:{location}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT"""
+    else:
+        # Обычное однодневное событие
+        event_date = datetime.strptime(event['date'], "%Y-%m-%d")
+        
+        description_text = (
+            f"{description}\\n\\nСсылка на регистрацию: {event['registration_url']}"
+        )
+        
+        return f"""BEGIN:VEVENT
+UID:{uid}@onevents.ru
+DTSTART;VALUE=DATE:{event_date.strftime('%Y%m%d')}
+SUMMARY:{title}
+DESCRIPTION:{description_text}
+LOCATION:{location}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT"""
+
+# Функция генерации общего календаря со всеми событиями
+def generate_public_calendar(events):
+    """Генерирует общий календарь со всеми событиями"""
+    
+    # Текущее время для метаданных
+    now = datetime.now()
+    now_str = now.strftime('%Y%m%dT%H%M%SZ')
+    
+    ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OnEvents//OnEvents Calendar//RU
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:OnEvents - 1С события
+X-WR-CALDESC:Календарь 1С событий от OnEvents
+X-WR-TIMEZONE:Europe/Moscow
+X-WR-URL:https://onevents.ru/calendar/onevents-public.ics
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-PUBLISHED-TTL:PT1H
+LAST-MODIFIED:{now_str}
+DTSTAMP:{now_str}"""
+    
+    # Добавляем все события в календарь
+    for event in events:
+        # Проверяем, есть ли секция sessions для события
+        if 'sessions' in event and event['sessions']:
+            sessions = event['sessions']
+            # Сортируем сессии по дате
+            sessions.sort(key=lambda x: x['date'])
+            
+            # Создаем отдельный VEVENT для каждой сессии
+            for i, session in enumerate(sessions):
+                vevent = generate_event_vevent(event, session, i + 1)
+                ics_content += f"\n{vevent}"
+        else:
+            # Обычное однодневное событие
+            vevent = generate_event_vevent(event)
+            ics_content += f"\n{vevent}"
+    
+    ics_content += """
+END:VCALENDAR"""
+    
+    return ics_content
+
+# Функция генерации ICS файла для события
+def generate_ics_content(event):
+    """Генерирует содержимое .ics файла для события"""
+    
+    # Формируем ICS содержимое
+    ics_content = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OnEvents//OnEvents Calendar//RU
+CALSCALE:GREGORIAN
+METHOD:PUBLISH"""
     
     # Проверяем, есть ли секция sessions для события
     if 'sessions' in event and event['sessions']:
@@ -65,74 +180,16 @@ def generate_ics_content(event):
         # Сортируем сессии по дате
         sessions.sort(key=lambda x: x['date'])
         
-        # Формируем ICS содержимое с несколькими VEVENT
-        ics_content = """BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//OnEvents//OnEvents Calendar//RU
-CALSCALE:GREGORIAN
-METHOD:PUBLISH"""
-        
-        # Нормализуем время к формату HHMMSS для ICS
-        def to_hhmmss(time_str: str) -> str:
-            s = str(time_str).strip()
-            s = s.replace('.', ':')
-            parts = s.split(':')
-            if len(parts) == 1:
-                hour = parts[0]
-                minute = '00'
-            else:
-                hour = parts[0]
-                minute = parts[1]
-            hour = hour.zfill(2)
-            minute = minute.zfill(2)
-            return f"{hour}{minute}00"
-
         # Создаем отдельный VEVENT для каждой сессии
         for i, session in enumerate(sessions):
-            session_date = datetime.strptime(session['date'], "%Y-%m-%d")
-            session_uid = f"{uid}-{i+1}"  # Уникальный UID для каждой сессии
-            
-            # Формируем время начала и окончания (локальное время)
-            start_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['start_time'])}"
-            end_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['end_time'])}"
-            
-            # Название сессии с датой
-            date_str = format_date(session_date, format="d MMMM", locale="ru")
-            session_title = f"{title} ({date_str})"
-            
-            ics_content += f"""
-BEGIN:VEVENT
-UID:{session_uid}@onevents.ru
-DTSTART:{start_datetime}
-DTEND:{end_datetime}
-SUMMARY:{session_title}
-DESCRIPTION:{description}\\n\\nСсылка на регистрацию: {event['registration_url']}\\n\\nВремя: {session['start_time']}-{session['end_time']}
-LOCATION:{location}
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-END:VEVENT"""
-        
-        ics_content += """
-END:VCALENDAR"""
+            vevent = generate_event_vevent(event, session, i + 1)
+            ics_content += f"\n{vevent}"
     else:
         # Обычное однодневное событие
-        event_date = datetime.strptime(event['date'], "%Y-%m-%d")
-        
-        # Формируем ICS содержимое
-        ics_content = f"""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//OnEvents//OnEvents Calendar//RU
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-BEGIN:VEVENT
-UID:{uid}@onevents.ru
-DTSTART;VALUE=DATE:{event_date.strftime('%Y%m%d')}
-SUMMARY:{title}
-DESCRIPTION:{description}\\n\\nСсылка на регистрацию: {event['registration_url']}
-LOCATION:{location}
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-END:VEVENT
+        vevent = generate_event_vevent(event)
+        ics_content += f"\n{vevent}"
+    
+    ics_content += """
 END:VCALENDAR"""
     
     return ics_content
@@ -219,3 +276,8 @@ for event in events:
     # Сохраняем .ics файл
     ics_file_path = calendar_dir / ics_filename
     ics_file_path.write_text(ics_content, encoding="utf-8")
+
+# Генерируем общий календарь со всеми событиями
+public_calendar_content = generate_public_calendar(events)
+public_calendar_path = calendar_dir / "onevents-public.ics"
+public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
