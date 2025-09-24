@@ -147,10 +147,6 @@
             transform: translateY(-50%) scale(0.9);
         }
         .calendar-copy-btn {
-            --copy-icon: '📋';
-        }
-        .calendar-copy-btn::before {
-            content: var(--copy-icon);
             font-size: 14px;
         }
     </style>
@@ -339,13 +335,12 @@
         
         copyToClipboard(url).then(() => {
           // Временная смена иконки на галочку
-          const originalContent = this.getAttribute('data-original') || '📋';
-          this.setAttribute('data-original', this.querySelector('::before')?.content || '📋');
-          this.style.setProperty('--copy-icon', '"✓"');
+          const originalText = this.textContent;
+          this.textContent = '✓';
           this.style.color = 'var(--link)';
           
           setTimeout(() => {
-            this.style.setProperty('--copy-icon', '"📋"');
+            this.textContent = originalText;
             this.style.color = '';
           }, 2000);
         }).catch(() => {

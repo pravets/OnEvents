@@ -216,34 +216,57 @@ END:VCALENDAR"""
     
     return ics_content
 
-# Функция генерации блока публичных календарей
-def render_public_calendars(all_events):
-    """Генерирует HTML блок с публичными календарями по городам"""
+# Функция генерации публичных календарей
+def generate_public_calendars(all_events, calendar_dir):
+    """Генерирует все публичные календари и возвращает список кортежей (название, ссылка, город)"""
     
-    # Получаем уникальные города
+    public_calendars_info = []
+    
+    # Генерируем общий календарь со всеми событиями
+    public_calendar_content = generate_public_calendar(
+        all_events,
+        calendar_name="События 1С - OnEvents",
+        wr_url="https://onevents.ru/calendar/onevents-public.ics",
+    )
+    public_calendar_path = calendar_dir / "onevents-public.ics"
+    public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
+    
+    # Добавляем общий календарь в список
+    public_calendars_info.append(("Все города", "https://onevents.ru/calendar/onevents-public.ics", ""))
+    
+    # Генерируем отдельные публичные календари по городам
     unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
-    
-    # Генерируем общий календарь (все события) - он всегда виден
-    general_calendar_html = f"""
-    <div class="calendar-item" data-city="">
-        <div class="calendar-city-name">Все города</div>
-        <div class="calendar-input-group">
-            <input type="text" class="calendar-input" value="https://onevents.ru/calendar/onevents-public.ics" readonly>
-            <button class="calendar-copy-btn" title="Копировать ссылку"></button>
-        </div>
-    </div>"""
-    
-    # Генерируем календари по городам
-    city_calendars_html = []
     for city in unique_cities:
+        city_events = [e for e in all_events if e.get('city') == city]
         city_slug = make_slug(city)
         city_filename = f"onevents-public-{city_slug}.ics"
-        city_calendars_html.append(f"""
+        city_url = f"https://onevents.ru/calendar/{city_filename}"
+        city_calendar_name = f"События 1С. {city} - OnEvents"
+        
+        city_calendar_content = generate_public_calendar(
+            city_events,
+            calendar_name=city_calendar_name,
+            wr_url=city_url,
+        )
+        (calendar_dir / city_filename).write_text(city_calendar_content, encoding="utf-8")
+        
+        # Сохраняем информацию о календаре
+        public_calendars_info.append((city, city_url, city))
+    
+    return public_calendars_info
+
+# Функция генерации HTML блока публичных календарей
+def render_public_calendars(public_calendars: list[tuple[str, str, str]]):
+    """Генерирует HTML блок с публичными календарями"""
+    
+    calendars_html = []
+    for name, url, city in public_calendars:
+        calendars_html.append(f"""
     <div class="calendar-item" data-city="{city}">
-        <div class="calendar-city-name">{city}</div>
+        <div class="calendar-city-name">{name}</div>
         <div class="calendar-input-group">
-            <input type="text" class="calendar-input" value="https://onevents.ru/calendar/{city_filename}" readonly>
-            <button class="calendar-copy-btn" title="Копировать ссылку"></button>
+            <input type="text" class="calendar-input" value="{url}" readonly>
+            <button class="calendar-copy-btn" title="Копировать ссылку">📋</button>
         </div>
     </div>""")
     
@@ -256,11 +279,26 @@ def render_public_calendars(all_events):
             <li>Скопируйте ссылку календаря</li>
             <li>В приложении календаря выберите "Подписаться на календарь" или "Добавить календарь по ссылке"</li>
         </ol>
-       
-        {general_calendar_html}
-        {''.join(city_calendars_html)}
+        {''.join(calendars_html)}
     </article>
     """
+
+# Функция генерации календаря для события
+def generate_event_calendars(events, calendar_dir):
+    """Генерирует .ics файлы для каждого события"""
+    
+    for event in events:
+        # Генерируем имя файла для .ics
+        safe_title = SAFE_CHARS_PATTERN.sub('', event['title']).strip()
+        safe_title = DASHES_SPACES_PATTERN.sub('-', safe_title)
+        ics_filename = f"{event['date']}-{safe_title}.ics"
+        
+        # Генерируем содержимое .ics файла
+        ics_content = generate_ics_content(event)
+        
+        # Сохраняем .ics файл
+        ics_file_path = calendar_dir / ics_filename
+        ics_file_path.write_text(ics_content, encoding="utf-8")
 
 # Функция генерации карточки
 def render_event(e):
@@ -304,9 +342,22 @@ def render_event(e):
     </article>
     """
 
-# Генерируем HTML
+# Создаем папку site при необходимости
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+shutil.copytree("img", "site/img", dirs_exist_ok=True)
+shutil.copytree("icons", "site/icons", dirs_exist_ok=True)
+
+# Создаем календари
+calendar_dir = OUTPUT_DIR / "calendar"
+calendar_dir.mkdir(exist_ok=True)
+
+generate_event_calendars(events, calendar_dir)
+public_calendars_info = generate_public_calendars(all_events, calendar_dir)
+
+# Генерация HTML
 events_html = "\n".join(render_event(e) for e in events)
-public_calendars_html = render_public_calendars(all_events)
+public_calendars_html = render_public_calendars(public_calendars_info)
 
 # Подставляем в шаблон
 today_date_str = format_date(date.today(), format="d MMMM y", locale="ru")
@@ -317,56 +368,5 @@ result_html = (
     .replace("{{ builddate }}", today_date_str)
 )
 
-# Создаем папку site при необходимости
-OUTPUT_DIR.mkdir(exist_ok=True)
-
 # Сохраняем результат
 OUTPUT_FILE.write_text(result_html, encoding="utf-8")
-
-# Копируем картинки
-shutil.copytree("img", "site/img", dirs_exist_ok=True)
-
-# Копируем Иконки
-shutil.copytree("icons", "site/icons", dirs_exist_ok=True)
-
-# Создаем папку для календарных файлов
-calendar_dir = OUTPUT_DIR / "calendar"
-calendar_dir.mkdir(exist_ok=True)
-
-# Генерируем .ics файлы для каждого события
-for event in events:
-    # Генерируем имя файла для .ics
-    safe_title = SAFE_CHARS_PATTERN.sub('', event['title']).strip()
-    safe_title = DASHES_SPACES_PATTERN.sub('-', safe_title)
-    ics_filename = f"{event['date']}-{safe_title}.ics"
-    
-    # Генерируем содержимое .ics файла
-    ics_content = generate_ics_content(event)
-    
-    # Сохраняем .ics файл
-    ics_file_path = calendar_dir / ics_filename
-    ics_file_path.write_text(ics_content, encoding="utf-8")
-
-# Генерируем общий календарь со всеми событиями
-public_calendar_content = generate_public_calendar(
-    all_events,
-    calendar_name="События 1С - OnEvents",
-    wr_url="https://onevents.ru/calendar/onevents-public.ics",
-)
-public_calendar_path = calendar_dir / "onevents-public.ics"
-public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
-
-# Генерируем отдельные публичные календари по городам
-unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
-for city in unique_cities:
-    city_events = [e for e in all_events if e.get('city') == city]
-    city_slug = make_slug(city)
-    city_filename = f"onevents-public-{city_slug}.ics"
-    city_url = f"https://onevents.ru/calendar/{city_filename}"
-    city_calendar_name = f"События 1С. {city} - OnEvents"
-    city_calendar_content = generate_public_calendar(
-        city_events,
-        calendar_name=city_calendar_name,
-        wr_url=city_url,
-    )
-    (calendar_dir / city_filename).write_text(city_calendar_content, encoding="utf-8")
