@@ -146,8 +146,7 @@ def generate_public_calendar(events, calendar_name: str | None = None, wr_url: s
     
     default_name = "Cобытия 1C - OnEvents"
     cal_name = calendar_name or default_name
-    default_url = "https://onevents.ru/calendar/onevents-public.ics"
-    cal_url = wr_url or default_url
+    cal_url = wr_url
 
     ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
@@ -223,16 +222,17 @@ def generate_public_calendars(all_events, calendar_dir):
     public_calendars = []
     
     # Генерируем общий календарь со всеми событиями
+    public_calendar_url = "https://onevents.ru/calendar/onevents-public.ics"
     public_calendar_content = generate_public_calendar(
         all_events,
         calendar_name="События 1С - OnEvents",
-        wr_url="https://onevents.ru/calendar/onevents-public.ics",
+        wr_url=public_calendar_url,
     )
     public_calendar_path = calendar_dir / "onevents-public.ics"
     public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
     
     # Добавляем общий календарь в список
-    public_calendars.append(("Все города", "https://onevents.ru/calendar/onevents-public.ics", ""))
+    public_calendars.append(("Все города", public_calendar_url, ""))
     
     # Генерируем отдельные публичные календари по городам
     unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
