@@ -345,7 +345,10 @@ def render_event(e):
 # Создаем папку site при необходимости
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+# Копируем картинки
 shutil.copytree("img", "site/img", dirs_exist_ok=True)
+
+# Копируем Иконки
 shutil.copytree("icons", "site/icons", dirs_exist_ok=True)
 
 # Создаем календари
@@ -355,7 +358,7 @@ calendar_dir.mkdir(exist_ok=True)
 generate_event_calendars(events, calendar_dir)
 public_calendars_info = generate_public_calendars(all_events, calendar_dir)
 
-# Генерация HTML
+# Генерируем HTML
 events_html = "\n".join(render_event(e) for e in events)
 public_calendars_html = render_public_calendars(public_calendars_info)
 
