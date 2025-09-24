@@ -48,6 +48,17 @@
         body {font-family:'JetBrains Mono', monospace;margin:0;padding:0;background:var(--bg);color:var(--text);word-break:break-word;transition:background .2s,color .2s;}
         a {color:var(--link);} a:hover {color:#a2c8ff !important;}
         header a {color:var(--header-text);} header a:hover {color:#a2c8ff !important; text-decoration:underline;}
+        
+        /* Темный стиль для выбора города в хедере */
+        #cityFilter {
+            background: #333 !important;
+            color: #fff !important;
+            border-color: #555 !important;
+        }
+        #cityFilter option {
+            background: #333;
+            color: #fff;
+        }
 
         header {
             position: sticky; top: 0; z-index: 1000;
