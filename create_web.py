@@ -216,6 +216,55 @@ END:VCALENDAR"""
     
     return ics_content
 
+# Функция генерации блока публичных календарей
+def render_public_calendars(all_events):
+    """Генерирует HTML блок с публичными календарями по городам"""
+    
+    # Получаем уникальные города
+    unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
+    
+    # Генерируем общий календарь (все события) - он всегда виден
+    general_calendar_html = f"""
+    <div class="calendar-item" data-city="">
+        <div class="calendar-city-name">Все события</div>
+        <div class="calendar-input-group">
+            <input type="text" class="calendar-input" value="https://onevents.ru/calendar/onevents-public.ics" readonly>
+            <button class="calendar-copy-btn" title="Копировать ссылку"></button>
+        </div>
+    </div>"""
+    
+    # Генерируем календари по городам
+    city_calendars_html = []
+    for city in unique_cities:
+        city_slug = make_slug(city)
+        city_filename = f"onevents-public-{city_slug}.ics"
+        city_calendars_html.append(f"""
+    <div class="calendar-item" data-city="{city}">
+        <div class="calendar-city-name">{city}</div>
+        <div class="calendar-input-group">
+            <input type="text" class="calendar-input" value="https://onevents.ru/calendar/{city_filename}" readonly>
+            <button class="calendar-copy-btn" title="Копировать ссылку"></button>
+        </div>
+    </div>""")
+    
+    return f"""
+    <h2>🔗 Подписка на календарь</h2>
+    
+    <article class="card">
+        <p>Чтобы всегда быть в курсе событий, можете подписаться на календарь событий в любом приложении-календаре.</p> 
+        <p>Календарь будет автоматически обновляться при добавлении новых событий.</p>
+        
+        <h4>Как подписаться:</h4>
+        <ol>
+            <li>Скопируйте ссылку календаря</li>
+            <li>В приложении календаря выберите "Подписаться на календарь" или "Добавить календарь по ссылке"</li>
+        </ol>
+       
+        {general_calendar_html}
+        {''.join(city_calendars_html)}
+    </article>
+    """
+
 # Функция генерации карточки
 def render_event(e):
     date_obj = datetime.strptime(e['date'], "%Y-%m-%d")
@@ -260,12 +309,14 @@ def render_event(e):
 
 # Генерируем HTML
 events_html = "\n".join(render_event(e) for e in events)
+public_calendars_html = render_public_calendars(all_events)
 
 # Подставляем в шаблон
 today_date_str = format_date(date.today(), format="d MMMM y", locale="ru")
 result_html = (
     template
     .replace("{{ events }}", events_html)
+    .replace("{{ public_calendars }}", public_calendars_html)
     .replace("{{ builddate }}", today_date_str)
 )
 
