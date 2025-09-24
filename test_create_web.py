@@ -1,4 +1,4 @@
-from create_web import *
+from create_web import clean_text
 
 def test_clean_text():
     assert clean_text("<br>") == ""
