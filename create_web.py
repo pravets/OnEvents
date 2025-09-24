@@ -220,7 +220,7 @@ END:VCALENDAR"""
 def generate_public_calendars(all_events, calendar_dir):
     """Генерирует все публичные календари и возвращает список кортежей (название, ссылка, город)"""
     
-    public_calendars_info = []
+    public_calendars = []
     
     # Генерируем общий календарь со всеми событиями
     public_calendar_content = generate_public_calendar(
@@ -232,7 +232,7 @@ def generate_public_calendars(all_events, calendar_dir):
     public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
     
     # Добавляем общий календарь в список
-    public_calendars_info.append(("Все города", "https://onevents.ru/calendar/onevents-public.ics", ""))
+    public_calendars.append(("Все города", "https://onevents.ru/calendar/onevents-public.ics", ""))
     
     # Генерируем отдельные публичные календари по городам
     unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
@@ -251,9 +251,9 @@ def generate_public_calendars(all_events, calendar_dir):
         (calendar_dir / city_filename).write_text(city_calendar_content, encoding="utf-8")
         
         # Сохраняем информацию о календаре
-        public_calendars_info.append((city, city_url, city))
+        public_calendars.append((city, city_url, city))
     
-    return public_calendars_info
+    return public_calendars
 
 # Функция генерации HTML блока публичных календарей
 def render_public_calendars(public_calendars: list[tuple[str, str, str]]):
@@ -356,11 +356,11 @@ calendar_dir = OUTPUT_DIR / "calendar"
 calendar_dir.mkdir(exist_ok=True)
 
 generate_event_calendars(events, calendar_dir)
-public_calendars_info = generate_public_calendars(all_events, calendar_dir)
+public_calendars = generate_public_calendars(all_events, calendar_dir)
 
 # Генерируем HTML
 events_html = "\n".join(render_event(e) for e in events)
-public_calendars_html = render_public_calendars(public_calendars_info)
+public_calendars_html = render_public_calendars(public_calendars)
 
 # Подставляем в шаблон
 today_date_str = format_date(date.today(), format="d MMMM y", locale="ru")
