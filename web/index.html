@@ -88,12 +88,10 @@
             gap: 1rem;
         }
         .calendar-city-name {
-            font-weight: bold;
             color: var(--text);
             width: 140px;
             flex-shrink: 0;
-            text-align: right;
-            padding-right: 1rem;
+            text-align: left;
         }
         .calendar-input-group {
             position: relative;
@@ -137,27 +135,12 @@
         .calendar-copy-btn:active {
             transform: translateY(-50%) scale(0.9);
         }
-        .calendar-copy-btn::before {
-            content: '';
-            width: 12px;
-            height: 12px;
-            border: 1px solid currentColor;
-            border-radius: 2px;
-            position: relative;
-            background: 
-                linear-gradient(45deg, transparent 40%, currentColor 40%, currentColor 60%, transparent 60%),
-                linear-gradient(-45deg, transparent 40%, currentColor 40%, currentColor 60%, transparent 60%);
-            background-size: 6px 6px, 6px 6px;
-            background-position: 2px 2px, 4px 4px;
-            background-repeat: no-repeat;
+        .calendar-copy-btn {
+            --copy-icon: '📋';
         }
-        .calendar-copy-btn:hover::before {
-            background: 
-                linear-gradient(45deg, transparent 40%, var(--link) 40%, var(--link) 60%, transparent 60%),
-                linear-gradient(-45deg, transparent 40%, var(--link) 40%, var(--link) 60%, transparent 60%);
-            background-size: 6px 6px, 6px 6px;
-            background-position: 2px 2px, 4px 4px;
-            background-repeat: no-repeat;
+        .calendar-copy-btn::before {
+            content: var(--copy-icon);
+            font-size: 14px;
         }
     </style>
 </head>
@@ -345,12 +328,13 @@
         
         copyToClipboard(url).then(() => {
           // Временная смена иконки на галочку
-          const originalIcon = this.innerHTML;
-          this.innerHTML = '✓';
+          const originalContent = this.getAttribute('data-original') || '📋';
+          this.setAttribute('data-original', this.querySelector('::before')?.content || '📋');
+          this.style.setProperty('--copy-icon', '"✓"');
           this.style.color = 'var(--link)';
           
           setTimeout(() => {
-            this.innerHTML = originalIcon;
+            this.style.setProperty('--copy-icon', '"📋"');
             this.style.color = '';
           }, 2000);
         }).catch(() => {
