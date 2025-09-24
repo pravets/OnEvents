@@ -72,10 +72,24 @@ def make_slug(text: str) -> str:
 
 def generate_event_vevent(event, session=None, session_index=None):
     """Генерирует VEVENT для события или сессии"""
-    # Создаем уникальный UID
-    uid_string = f"{event['title']}-{event['date']}-{event['city']}"
+    # Создаем уникальный UID на основе всех ключевых характеристик события
+    # Используем более детальную строку для генерации UID
+    uid_components = [
+        event['title'],
+        event['date'],
+        event['city'],
+        event.get('address', ''),
+        event.get('registration_url', '')
+    ]
+    
     if session_index is not None:
-        uid_string += f"-{session_index}"
+        # Для сессий добавляем информацию о сессии
+        session_info = f"{session['date']}-{session['start_time']}-{session['end_time']}"
+        uid_components.append(session_info)
+        uid_components.append(str(session_index))
+    
+    # Создаем строку для хеширования, убирая лишние пробелы и нормализуя
+    uid_string = '-'.join(str(comp).strip() for comp in uid_components if comp)
     uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest() # NOSONAR
     
     # Формируем адрес
@@ -89,7 +103,6 @@ def generate_event_vevent(event, session=None, session_index=None):
     if session:
         # Сессия события
         session_date = datetime.strptime(session['date'], "%Y-%m-%d")
-        session_uid = f"{uid}-{session_index}"
         
         # Формируем время начала и окончания
         start_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['start_time'])}"
@@ -105,7 +118,7 @@ def generate_event_vevent(event, session=None, session_index=None):
         )
         
         return f"""BEGIN:VEVENT
-UID:{session_uid}@onevents.ru
+UID:{uid}@onevents.ru
 DTSTART:{start_datetime}
 DTEND:{end_datetime}
 SUMMARY:{session_title}
