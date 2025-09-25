@@ -1,0 +1,11 @@
+title: "Selectel Tech Day 2025"
+date: "2025-10-08"
+city: "Москва"
+address: "ул. Покровка, 47, Цифровое деловое пространство"
+icon: "std_2025.jpg"
+description: "Selectel Tech Day 2025 - Флагманская конференция компании Selectel в Москве. Разберем актуальные темы из мира IT-инфраструктуры и обсудим опыт СТО и топ-менеджеров технологических компаний."
+registration_url: "https://techday.selectel.ru/"
+sessions:
+  - date: "2025-10-08"
+    start_time: "11:00"
+    end_time: "18:00"
