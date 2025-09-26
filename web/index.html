@@ -48,6 +48,17 @@
         body {font-family:'JetBrains Mono', monospace;margin:0;padding:0;background:var(--bg);color:var(--text);word-break:break-word;transition:background .2s,color .2s;}
         a {color:var(--link);} a:hover {color:#a2c8ff !important;}
         header a {color:var(--header-text);} header a:hover {color:#a2c8ff !important; text-decoration:underline;}
+        
+        /* Темный стиль для выбора города в хедере */
+        #cityFilter {
+            background: #333 !important;
+            color: #fff !important;
+            border-color: #555 !important;
+        }
+        #cityFilter option {
+            background: #333;
+            color: #fff;
+        }
 
         header {
             position: sticky; top: 0; z-index: 1000;
@@ -78,6 +89,66 @@
             nav {margin-top:.5em;flex-direction:column;gap:.5em;}
         }
         #about { scroll-margin-top: 80px; }
+        #public-calendars { scroll-margin-top: 80px; }
+        
+        /* Стили для блока публичных календарей */
+        .calendar-item {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .calendar-city-name {
+            color: var(--text);
+            width: 140px;
+            flex-shrink: 0;
+            text-align: left;
+        }
+        .calendar-input-group {
+            position: relative;
+            flex: 1;
+            max-width: calc(100% - 160px);
+        }
+        .calendar-input {
+            width: 100%;
+            padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            word-break: break-all;
+            box-sizing: border-box;
+        }
+        .calendar-copy-btn {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 3px;
+            color: var(--muted);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+        }
+        .calendar-copy-btn:hover {
+            color: var(--link);
+            background: var(--border);
+        }
+        .calendar-copy-btn:active {
+            transform: translateY(-50%) scale(0.9);
+        }
+        .calendar-copy-btn {
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -96,6 +167,7 @@
         <option value="">Все города</option>
       </select>
       <a href="#top">События</a>
+      <a href="#public-calendars">Календари</a>
       <a href="#about">О проекте</a>
       <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="Переключить тему"><span id="themeIcon">🌓</span></button>
     </nav>
@@ -108,6 +180,11 @@
   <div id="events">
     {{ events }}
   </div>
+
+  <!-- Блок публичных календарей -->
+  <section id="public-calendars">
+    {{ public_calendars }}
+  </section>
 
   <!-- Блок О проекте -->
    
@@ -157,6 +234,7 @@
 (function cityFilterInit(){
   const SELECT_ID = 'cityFilter';
   function getCards(){ return Array.from(document.querySelectorAll('article.card[data-city]')); }
+  function getCalendarItems(){ return Array.from(document.querySelectorAll('.calendar-item[data-city]')); }
   function uniqueCities(){
     const set = new Set(getCards().map(c => (c.getAttribute('data-city')||'').trim()).filter(Boolean));
     return Array.from(set).sort((a,b) => a.localeCompare(b, 'ru'));
@@ -176,9 +254,20 @@
   }
   function applyFilter(city){
     const cards = getCards();
+    const calendarItems = getCalendarItems();
+    
     cards.forEach(card => {
       const c = (card.getAttribute('data-city')||'').trim();
       card.style.display = (!city || c === city) ? '' : 'none';
+    });
+    
+    calendarItems.forEach(item => {
+      const c = (item.getAttribute('data-city')||'').trim();
+      // Показываем календарь если:
+      // 1. Нет фильтра (показываем все)
+      // 2. Это общий календарь (data-city="")
+      // 3. Город совпадает с фильтром
+      item.style.display = (!city || c === '' || c === city) ? '' : 'none';
     });
   }
   function loadSaved(){
@@ -207,6 +296,65 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+})();
+</script>
+
+<script>
+// Функциональность копирования ссылок календарей
+(function copyCalendarLinks() {
+  function copyToClipboard(text) {
+    if (navigator.clipboard) {
+      return navigator.clipboard.writeText(text);
+    } else {
+      // Fallback для старых браузеров
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        return Promise.resolve();
+      } catch (err) {
+        return Promise.reject(err);
+      } finally {
+        document.body.removeChild(textArea);
+      }
+    }
+  }
+
+  function initCopyButtons() {
+    document.querySelectorAll('.calendar-copy-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const input = this.closest('.calendar-input-group').querySelector('.calendar-input');
+        const url = input.value;
+        
+        copyToClipboard(url).then(() => {
+          // Временная смена иконки на галочку
+          const originalText = this.textContent;
+          this.textContent = '✓';
+          this.style.color = 'var(--link)';
+          
+          setTimeout(() => {
+            this.textContent = originalText;
+            this.style.color = '';
+          }, 2000);
+        }).catch(() => {
+          // Fallback - показываем URL в alert
+          alert('Скопируйте ссылку: ' + url);
+        });
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCopyButtons);
+  } else {
+    initCopyButtons();
   }
 })();
 </script>

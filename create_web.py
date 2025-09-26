@@ -72,10 +72,24 @@ def make_slug(text: str) -> str:
 
 def generate_event_vevent(event, session=None, session_index=None):
     """Генерирует VEVENT для события или сессии"""
-    # Создаем уникальный UID
-    uid_string = f"{event['title']}-{event['date']}-{event['city']}"
+    # Создаем уникальный UID на основе всех ключевых характеристик события
+    # Используем более детальную строку для генерации UID
+    uid_components = [
+        event['title'],
+        event['date'],
+        event['city'],
+        event.get('address', ''),
+        event.get('registration_url', '')
+    ]
+    
     if session_index is not None:
-        uid_string += f"-{session_index}"
+        # Для сессий добавляем информацию о сессии
+        session_info = f"{session['date']}-{session['start_time']}-{session['end_time']}"
+        uid_components.append(session_info)
+        uid_components.append(str(session_index))
+    
+    # Создаем строку для хеширования, убирая лишние пробелы и нормализуя
+    uid_string = '-'.join(str(comp).strip() for comp in uid_components if comp)
     uid = hashlib.md5(uid_string.encode('utf-8')).hexdigest() # NOSONAR
     
     # Формируем адрес
@@ -89,7 +103,6 @@ def generate_event_vevent(event, session=None, session_index=None):
     if session:
         # Сессия события
         session_date = datetime.strptime(session['date'], "%Y-%m-%d")
-        session_uid = f"{uid}-{session_index}"
         
         # Формируем время начала и окончания
         start_datetime = f"{session_date.strftime('%Y%m%d')}T{to_hhmmss(session['start_time'])}"
@@ -105,7 +118,7 @@ def generate_event_vevent(event, session=None, session_index=None):
         )
         
         return f"""BEGIN:VEVENT
-UID:{session_uid}@onevents.ru
+UID:{uid}@onevents.ru
 DTSTART:{start_datetime}
 DTEND:{end_datetime}
 SUMMARY:{session_title}
@@ -146,8 +159,7 @@ def generate_public_calendar(events, calendar_name: str | None = None, wr_url: s
     
     default_name = "Cобытия 1C - OnEvents"
     cal_name = calendar_name or default_name
-    default_url = "https://onevents.ru/calendar/onevents-public.ics"
-    cal_url = wr_url or default_url
+    cal_url = wr_url
 
     ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
@@ -216,6 +228,91 @@ END:VCALENDAR"""
     
     return ics_content
 
+# Функция генерации публичных календарей
+def generate_public_calendars(all_events, calendar_dir):
+    """Генерирует все публичные календари и возвращает список кортежей (название, ссылка, город)"""
+    
+    public_calendars = []
+    
+    # Генерируем общий календарь со всеми событиями
+    public_calendar_url = "https://onevents.ru/calendar/onevents-public.ics"
+    public_calendar_content = generate_public_calendar(
+        all_events,
+        calendar_name="События 1С - OnEvents",
+        wr_url=public_calendar_url,
+    )
+    public_calendar_path = calendar_dir / "onevents-public.ics"
+    public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
+    
+    # Добавляем общий календарь в список
+    public_calendars.append(("Все города", public_calendar_url, ""))
+    
+    # Генерируем отдельные публичные календари по городам
+    unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
+    for city in unique_cities:
+        city_events = [e for e in all_events if e.get('city') == city]
+        city_slug = make_slug(city)
+        city_filename = f"onevents-public-{city_slug}.ics"
+        city_url = f"https://onevents.ru/calendar/{city_filename}"
+        city_calendar_name = f"События 1С. {city} - OnEvents"
+        
+        city_calendar_content = generate_public_calendar(
+            city_events,
+            calendar_name=city_calendar_name,
+            wr_url=city_url,
+        )
+        (calendar_dir / city_filename).write_text(city_calendar_content, encoding="utf-8")
+        
+        # Сохраняем информацию о календаре
+        public_calendars.append((city, city_url, city))
+    
+    return public_calendars
+
+# Функция генерации HTML блока публичных календарей
+def render_public_calendars(public_calendars: list[tuple[str, str, str]]):
+    """Генерирует HTML блок с публичными календарями"""
+    
+    calendars_html = []
+    for name, url, city in public_calendars:
+        calendars_html.append(f"""
+    <div class="calendar-item" data-city="{city}">
+        <div class="calendar-city-name">{name}</div>
+        <div class="calendar-input-group">
+            <input type="text" class="calendar-input" value="{url}" readonly>
+            <button class="calendar-copy-btn" title="Копировать ссылку">📋</button>
+        </div>
+    </div>""")
+    
+    return f"""
+    <h2>🔗 Подписка на календарь</h2>
+    
+    <article class="card">
+        <p>Чтобы всегда быть в курсе событий подпишитесь на календарь в вашем приложении-календаре. События будут автоматически обновляться при добавлении на сайт.</p>
+        <ol>
+            <li>Скопируйте ссылку календаря</li>
+            <li>В приложении календаря выберите "Добавить календарь подписки" (для Apple) или "Добавить календарь по URL" (для Google)</li>
+        </ol>
+        {''.join(calendars_html)}
+    </article>
+    """
+
+# Функция генерации календаря для события
+def generate_event_calendars(events, calendar_dir):
+    """Генерирует .ics файлы для каждого события"""
+    
+    for event in events:
+        # Генерируем имя файла для .ics
+        safe_title = SAFE_CHARS_PATTERN.sub('', event['title']).strip()
+        safe_title = DASHES_SPACES_PATTERN.sub('-', safe_title)
+        ics_filename = f"{event['date']}-{safe_title}.ics"
+        
+        # Генерируем содержимое .ics файла
+        ics_content = generate_ics_content(event)
+        
+        # Сохраняем .ics файл
+        ics_file_path = calendar_dir / ics_filename
+        ics_file_path.write_text(ics_content, encoding="utf-8")
+
 # Функция генерации карточки
 def render_event(e):
     date_obj = datetime.strptime(e['date'], "%Y-%m-%d")
@@ -258,22 +355,8 @@ def render_event(e):
     </article>
     """
 
-# Генерируем HTML
-events_html = "\n".join(render_event(e) for e in events)
-
-# Подставляем в шаблон
-today_date_str = format_date(date.today(), format="d MMMM y", locale="ru")
-result_html = (
-    template
-    .replace("{{ events }}", events_html)
-    .replace("{{ builddate }}", today_date_str)
-)
-
 # Создаем папку site при необходимости
 OUTPUT_DIR.mkdir(exist_ok=True)
-
-# Сохраняем результат
-OUTPUT_FILE.write_text(result_html, encoding="utf-8")
 
 # Копируем картинки
 shutil.copytree("img", "site/img", dirs_exist_ok=True)
@@ -281,44 +364,25 @@ shutil.copytree("img", "site/img", dirs_exist_ok=True)
 # Копируем Иконки
 shutil.copytree("icons", "site/icons", dirs_exist_ok=True)
 
-# Создаем папку для календарных файлов
+# Создаем календари
 calendar_dir = OUTPUT_DIR / "calendar"
 calendar_dir.mkdir(exist_ok=True)
 
-# Генерируем .ics файлы для каждого события
-for event in events:
-    # Генерируем имя файла для .ics
-    safe_title = SAFE_CHARS_PATTERN.sub('', event['title']).strip()
-    safe_title = DASHES_SPACES_PATTERN.sub('-', safe_title)
-    ics_filename = f"{event['date']}-{safe_title}.ics"
-    
-    # Генерируем содержимое .ics файла
-    ics_content = generate_ics_content(event)
-    
-    # Сохраняем .ics файл
-    ics_file_path = calendar_dir / ics_filename
-    ics_file_path.write_text(ics_content, encoding="utf-8")
+generate_event_calendars(events, calendar_dir)
+public_calendars = generate_public_calendars(all_events, calendar_dir)
 
-# Генерируем общий календарь со всеми событиями
-public_calendar_content = generate_public_calendar(
-    all_events,
-    calendar_name="События 1С - OnEvents",
-    wr_url="https://onevents.ru/calendar/onevents-public.ics",
+# Генерируем HTML
+events_html = "\n".join(render_event(e) for e in events)
+public_calendars_html = render_public_calendars(public_calendars)
+
+# Подставляем в шаблон
+today_date_str = format_date(date.today(), format="d MMMM y", locale="ru")
+result_html = (
+    template
+    .replace("{{ events }}", events_html)
+    .replace("{{ public_calendars }}", public_calendars_html)
+    .replace("{{ builddate }}", today_date_str)
 )
-public_calendar_path = calendar_dir / "onevents-public.ics"
-public_calendar_path.write_text(public_calendar_content, encoding="utf-8")
 
-# Генерируем отдельные публичные календари по городам
-unique_cities = sorted({e.get('city', '').strip() for e in all_events if e.get('city')})
-for city in unique_cities:
-    city_events = [e for e in all_events if e.get('city') == city]
-    city_slug = make_slug(city)
-    city_filename = f"onevents-public-{city_slug}.ics"
-    city_url = f"https://onevents.ru/calendar/{city_filename}"
-    city_calendar_name = f"События 1С. {city} - OnEvents"
-    city_calendar_content = generate_public_calendar(
-        city_events,
-        calendar_name=city_calendar_name,
-        wr_url=city_url,
-    )
-    (calendar_dir / city_filename).write_text(city_calendar_content, encoding="utf-8")
+# Сохраняем результат
+OUTPUT_FILE.write_text(result_html, encoding="utf-8")
