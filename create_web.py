@@ -42,6 +42,14 @@ def add_utm_marks(url: str) -> str:
     """Добавляет UTM метки к ссылке регистрации, если их там нет"""
     if not url or 'utm_source=' in url:
         return url
+
+    # Список URL, которые не нужно обрабатывать
+    exclude_urls = [
+        't.me',
+        'telegram.org'
+    ]
+    if any(exclude in url for exclude in exclude_urls):
+        return url
     
     # Определяем разделитель (если в URL уже есть параметры)
     separator = '&' if '?' in url else '?'
