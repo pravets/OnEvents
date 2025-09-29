@@ -210,17 +210,15 @@ END:VEVENT"""
         # Обычное однодневное событие
         event_date = datetime.strptime(event['date'], "%Y-%m-%d")
         
-        # Добавляем UTM метки к ссылке регистрации для ICS
-        registration_url_with_utm = add_utm_marks(event['registration_url'])
-        
+         
         # Добавляем ссылку на карту если есть
-        map_url = map_link(event['city'], event['address'])
+        map_url = shorten_url(map_link(event['city'], event['address']))
         map_text = ""
         if map_url:
             map_text = f"\\n\\nПоказать на карте: {map_url}"
         
         description_text = (
-            f"{description}\\n\\nСсылка на регистрацию: {registration_url_with_utm}{map_text}"
+            f"{description}\\n\\nСсылка на регистрацию: {event['registration_url']}{map_text}"
         )
         
         return f"""BEGIN:VEVENT
