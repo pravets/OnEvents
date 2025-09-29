@@ -37,6 +37,31 @@ for file in EVENTS_DIR.glob("*.yml"):
 all_events.sort(key=lambda e: e["date"])  # для общего календаря
 events.sort(key=lambda e: e["date"])      # для карточек/индивидуальных .ics
 
+# Функция для создания ссылки на Яндекс.Карты
+def map_link(city: str, address: str = "") -> str:
+    """Создает ссылку на Яндекс.Карты"""
+    
+    # Не показываем если адрес пустой
+    if not address: 
+        return ""
+
+    # Не показываем для онлайн событий
+    if city.lower() in ['online', 'онлайн']:
+        return ""
+    
+    # Не показываем если в адресе есть слова о неопределенности
+    uncertain_words = ['уточняется', 'придумано', 'объявлено', 'уточнить', 'tbd', 'tba', 'todo']
+    if any(word in address.lower() for word in uncertain_words):
+        return ""
+    
+    full_address = f"{city}, {address}"
+    
+    # URL-кодируем адрес для безопасной передачи в URL
+    import urllib.parse
+    encoded_address = urllib.parse.quote(full_address)
+    
+    return f"https://yandex.ru/maps/?text={encoded_address}"
+
 # Функция для добавления UTM меток к ссылкам регистрации
 def add_utm_marks(url: str) -> str:
     """Добавляет UTM метки к ссылке регистрации, если их там нет"""
@@ -365,6 +390,12 @@ def render_event(e):
     
     # Добавляем UTM метки к ссылке регистрации
     registration_url_with_utm = add_utm_marks(e['registration_url'])
+    
+    # Добавляем ссылку на карту
+    map_url = map_link(e['city'], e['address'])
+    map_link_html = ""
+    if map_url:
+        map_link_html = f' <a href="{map_url}" target="_blank" class="map-link" title="Показать на карте">Показать на карте</a>'
  
     return f"""
     <article class="card" itemscope itemtype="https://schema.org/Event"  data-city="{e['city']}">
@@ -383,7 +414,7 @@ def render_event(e):
             <span itemprop="location" itemscope itemtype="https://schema.org/Place">
               <span itemprop="addressLocality">{address_str}</span>
             </span>
-          </div>
+          </div>{map_link_html}
         </div>
       </div>
       <p>{e['description']}</p>
