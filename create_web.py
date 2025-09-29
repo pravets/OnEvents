@@ -6,6 +6,7 @@ from babel.dates import format_date
 import shutil
 import hashlib
 import re
+import requests
 
 # Общие регулярные выражения
 SAFE_CHARS_PATTERN = re.compile(r'[^\w\s-]')
@@ -36,6 +37,24 @@ for file in EVENTS_DIR.glob("*.yml"):
 # Сортируем по дате
 all_events.sort(key=lambda e: e["date"])  # для общего календаря
 events.sort(key=lambda e: e["date"])      # для карточек/индивидуальных .ics
+
+# Функция для сокращения ссылок через clck.ru
+def shorten_url(url: str) -> str:
+    """Сокращает URL через сервис clck.ru"""
+    
+    if not url:
+        return url
+    
+    try:
+        response = requests.get('https://clck.ru/--', params={'url': url}, timeout=5)
+        if response.status_code == 200:
+            return response.text.strip()
+        else:
+            # Если сервис недоступен, возвращаем оригинальную ссылку
+            return url
+    except Exception:
+        # В случае любой ошибки возвращаем оригинальную ссылку
+        return url
 
 # Функция для создания ссылки на Яндекс.Карты
 def map_link(city: str, address: str = "") -> str:
@@ -165,12 +184,16 @@ def generate_event_vevent(event, session=None, session_index=None):
         date_str = format_date(session_date, format="d MMMM", locale="ru")
         session_title = f"{title} ({date_str})"
         
-        # Добавляем UTM метки к ссылке регистрации для ICS
-        registration_url_with_utm = add_utm_marks(event['registration_url'])
+        
+        # Добавляем короткую ссылку на карту если есть
+        map_url = shorten_url(map_link(event['city'], event['address']))
+        map_text = ""
+        if map_url:
+            map_text = f"\\n\\nПоказать на карте: {map_url}"
         
         description_text = (
-            f"{description}\\n\\nСсылка на регистрацию: {registration_url_with_utm}"
-            f"\\n\\nВремя: {session['start_time']}-{session['end_time']}"
+            f"{description}\\n\\nСсылка на регистрацию: {event['registration_url']}"
+            f"\\n\\nВремя: {session['start_time']}-{session['end_time']}{map_text}"
         )
         
         return f"""BEGIN:VEVENT
@@ -190,8 +213,14 @@ END:VEVENT"""
         # Добавляем UTM метки к ссылке регистрации для ICS
         registration_url_with_utm = add_utm_marks(event['registration_url'])
         
+        # Добавляем ссылку на карту если есть
+        map_url = map_link(event['city'], event['address'])
+        map_text = ""
+        if map_url:
+            map_text = f"\\n\\nПоказать на карте: {map_url}"
+        
         description_text = (
-            f"{description}\\n\\nСсылка на регистрацию: {registration_url_with_utm}"
+            f"{description}\\n\\nСсылка на регистрацию: {registration_url_with_utm}{map_text}"
         )
         
         return f"""BEGIN:VEVENT
