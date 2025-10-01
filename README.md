@@ -1,7 +1,7 @@
 [![OpenYellow](https://img.shields.io/endpoint?url=https://openyellow.org/data/badges/7/1040948355.json)](https://openyellow.org/grid?data=top&repo=1040948355)
 [![Quality Gate Status](https://sonar.openbsl.ru/api/project_badges/measure?project=onevents&metric=alert_status)](https://sonar.openbsl.ru/dashboard?id=onevents)
 [![Telegram](https://img.shields.io/badge/telegram-%D0%BA%D0%B0%D0%BD%D0%B0%D0%BB-blue.svg?label=telegram)](https://t.me/OnEvents)
-[![LICENSE](https://img.shields.io/github/license/crimsongoldteam/md_design?label=%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F)](https://github.com/bestuzheff/OnEvents/blob/main/LICENSE.md)
+[![LICENSE](https://img.shields.io/github/license/crimsongoldteam/md_design?label=%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F)](https://github.com/bestuzheff/OnEvents/blob/main/LICENSE)
 
 # 🎉 OnEvents
 
