@@ -11,6 +11,8 @@ RUN pip install -r requirements.txt
 
 # Копируем нужные файлы
 COPY create_web.py /app/create_web.py
+RUN mkdir -p /app/utils
+COPY utils/ /app/utils/
 RUN mkdir -p /app/web
 COPY web/index.html /app/web/index.html
 RUN mkdir -p /app/img
